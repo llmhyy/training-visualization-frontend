@@ -36,6 +36,7 @@ declare global {
     customMetadata: any,
 
     queryResPointIndices: any,
+    alQueryResPointIndices:any,
     previousIndecates: any,
     previousAnormalIndecates: any,
     queryResAnormalIndecates: any,
@@ -45,7 +46,11 @@ declare global {
     alSuggestScoreList: any,
     previousHover: number,
 
-    allResPositions: any
+    allResPositions: any,
+    modelMath: string,
+    tSNETotalIter: number,
+    taskType: string,
+    selectedStack:any
   }
 }
 
@@ -228,10 +233,6 @@ class Projector
     this.bookmarkPanel = this.$['bookmark-panel'] as any; // BookmarkPanel
     this.metadataCard = this.$['metadata-card'] as any; // MetadataCard
     this.statusBar = this.$$('#status-bar') as HTMLDivElement;
-    this.goDownBtn = this.$$('#cavasGoDown') as HTMLElement;
-    this.goUpBtn = this.$$('#cavasGoUp') as HTMLElement;
-    this.goLeftBtn = this.$$('#cavasGoLeft') as HTMLElement;
-    this.goRightBtn = this.$$('#cavasGoRight') as HTMLElement;
     this.helpBtn = this.$$('#help-3d-icon') as HTMLElement;
     this.inspectorPanel.initialize(this, this as ProjectorEventContext);
     this.projectionsPanel.initialize(this);
@@ -581,16 +582,23 @@ class Projector
   refresh() {
     // this.projectorScatterPlotAdapter.scatterPlot.render()
     this.metadataCard.updateCustomList(this.dataSet.points)
-    this.projectorScatterPlotAdapter.scatterPlot.render()
+    // this.projectorScatterPlotAdapter.scatterPlot.render()
+    this.projectorScatterPlotAdapter.updateScatterPlotAttributes()
+    this.projectorScatterPlotAdapter.render()
   }
   /**
    * Used by clients to indicate that a selection has occurred.
    */
   notifySelectionChanged(newSelectedPointIndices: number[], selectMode?: boolean, selectionType?: string) {
-
+    
     if (selectionType === 'isALQuery' || selectionType === 'normal' || selectionType === 'isAnormalyQuery') {
       window.customSelection = []
       window.queryResPointIndices = newSelectedPointIndices
+      if(selectionType === 'isALQuery'){
+        window.alQueryResPointIndices = newSelectedPointIndices
+      }else{
+        window.alQueryResPointIndices = []
+      }
       this.metadataCard.updateCustomList(this.dataSet.points)
     }
     if (selectionType === 'isShowSelected') {
@@ -787,7 +795,7 @@ class Projector
   notifyHoverOverPoint(pointIndex: number) {
     this.hoverListeners.forEach((l) => l(pointIndex));
     let timeNow = new Date().getTime()
-    if (this.timer === null || timeNow - this.timer > 1000) {
+    if (this.timer === null || timeNow - this.timer > 100) {
       if (window.iteration && pointIndex !== undefined && pointIndex !== null && window.previousHover !== pointIndex) {
         console.log('get img')
         this.timer = timeNow
@@ -983,23 +991,6 @@ class Projector
       this.projectorScatterPlotAdapter.setTriangleMode((triangleModeBtn as any).active)
     })
 
-    this.goDownBtn.addEventListener('click', (e) => {
-      // this.scattor
-      this.projectorScatterPlotAdapter.scatterPlot.goDown()
-    })
-
-    this.goUpBtn.addEventListener('click', (e) => {
-      this.projectorScatterPlotAdapter.scatterPlot.goUp()
-    })
-
-    this.goLeftBtn.addEventListener('click', (e) => {
-      this.projectorScatterPlotAdapter.scatterPlot.goLeft()
-    })
-
-    this.goRightBtn.addEventListener('click', (e) => {
-      this.projectorScatterPlotAdapter.scatterPlot.goRight()
-    })
-
     window.addEventListener('resize', () => {
       this.projectorScatterPlotAdapter.resize();
     });
@@ -1189,13 +1180,14 @@ class Projector
     fetch(`http://${this.DVIServer}/query`, {
       method: 'POST',
       body: JSON.stringify({
-        "predicates": dummyCurrPredicates, "path": this.dataSet.DVIsubjectModelPath,
+        "predicates": dummyCurrPredicates, "content_path": this.dataSet.DVIsubjectModelPath,
         "iteration": iteration
       }),
       headers: headers,
       mode: 'cors'
     }).then(response => response.json()).then(data => {
       const indices = data.selectedPoints;
+      window.alSuggestLabelList = []
       logging.setModalMessage(null, msgId);
       callback(indices);
     }).catch(error => {
@@ -1213,7 +1205,7 @@ class Projector
     let headers = new Headers();
     headers.append('Content-Type', 'application/json');
     headers.append('Accept', 'application/json');
-    fetch(`http://${this.DVIServer}/all_result_list`, {
+    fetch(`http://${this.DVIServer}/all_result_list?content_path=${this.dataSet.DVIsubjectModelPath}&iteration_start=1&iteration_end=${window.tSNETotalIter}`, {
       method: 'GET',
       headers: headers,
       mode: 'cors'
@@ -1237,7 +1229,7 @@ class Projector
     fetch(`http://${this.DVIServer}/query`, {
       method: 'POST',
       body: JSON.stringify({
-        "predicates": predicates, "path": this.dataSet.DVIsubjectModelPath,
+        "predicates": predicates, "content_path": this.dataSet.DVIsubjectModelPath,
         "iteration": iteration
       }),
       headers: headers,
@@ -1245,6 +1237,7 @@ class Projector
     }).then(response => response.json()).then(data => {
       const indices = data.selectedPoints;
       this.inspectorPanel.filteredPoints = indices;
+      window.alSuggestLabelList = []
     }).catch(error => {
       logging.setErrorMessage('querying for indices');
     });

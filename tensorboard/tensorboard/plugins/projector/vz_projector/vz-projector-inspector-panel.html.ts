@@ -341,7 +341,7 @@ export const template = html`
     flex-direction: column;
   }
   .results .list{
-    max-height: calc(100vh - 500px);
+    max-height: calc(100vh - 420px);
     overflow: auto;
   }
 
@@ -360,22 +360,27 @@ export const template = html`
 
   <div class="ink-panel-header">
     <div class="ink-tab-group">
-
       <div data-tab="normal" id="normal-filter-tab" class="ink-tab projection-tab">
         Normal Query
       </div>
       <paper-tooltip for="normal-filter-tab" position="bottom" animation-delay="0" fit-to-visible-bounds>
         Normal Query
       </paper-tooltip>
+      <template is="dom-if" if="[[shownormal]]">
       <div data-tab="advanced" id="al-filter-tab" class="ink-tab projection-tab">
         Active Learning
       </div>
+      </template>
       <paper-tooltip for="al-filter-tab" position="bottom" animation-delay="0" fit-to-visible-bounds>
         Query By Actived Learning
       </paper-tooltip>
+
+      <template is="dom-if" if="[[showAnomaly]]">
       <div data-tab="anomaly" id="anomaly-filter-tab" class="ink-tab projection-tab">
       Anomaly Detection
       </div>
+     </template>
+
      <paper-tooltip for="al-filter-tab" position="bottom" animation-delay="0" fit-to-visible-bounds>
       Query By Actived Learning
      </paper-tooltip>
@@ -503,7 +508,7 @@ export const template = html`
   </div>-->
 
 
-  <div id="query-container">
+  <!--<div id="query-container">
     <div id="query-header-container">
       <div id="query-header">Dynamically Selection</div>
       <paper-icon-button icon="[[collapseIcon]]" on-tap="_toggleMetadataContainer">
@@ -531,7 +536,7 @@ export const template = html`
           </button></div>
       </div>
     </iron-collapse>
-  </div>
+  </div>-->
   <!--<div>
     <button class="boundingbox-button add">add</button>
     <button class="boundingbox-button reset">reset</button>

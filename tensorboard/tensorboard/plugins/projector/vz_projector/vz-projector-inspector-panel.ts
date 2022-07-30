@@ -119,6 +119,12 @@ class InspectorPanel extends LegacyElementMixin(PolymerElement) {
   @property({ type: String })
   collapseIcon: string = 'expand-less';
 
+  @property({ type: Boolean})
+  showAnomaly: boolean = false
+
+  @property({type: Boolean})
+  shownormal: boolean = false
+
 
   distFunc: DistanceFunction;
 
@@ -180,6 +186,9 @@ class InspectorPanel extends LegacyElementMixin(PolymerElement) {
 
     this.currentFilterType = 'normal'
 
+    this.showAnomaly = window.sessionStorage.taskType == 'anormaly detection' || window.taskType == 'anormaly detection'
+    this.shownormal = window.sessionStorage.taskType == 'active learning' || window.taskType == 'active learning'
+
     this.queryByStrategtBtn = this.$$('.query-by-stratergy') as HTMLButtonElement;
     this.showSelectionBtn = this.$$('.show-selection') as HTMLButtonElement
     this.queryAnomalyBtn = this.$$('.query-anomaly') as HTMLButtonElement;
@@ -234,7 +243,7 @@ class InspectorPanel extends LegacyElementMixin(PolymerElement) {
     // TODO change them based on metadata fields
     this.searchFields = ["type", "label", "new_selection"]
     // active learning statergy
-    this.statergyList = ["random", "coreset", 'bayesianLeastConfidence', "LeastConfidence"]
+    this.statergyList = ["random", "LeastConfidence"]
     // anormaly detection statergy
     this.anormalyStatergyList = ['anormalyStageone', 'anormalyStageTwo', 'anormalyStageThree']
     // anormaly detcttion classes
@@ -322,6 +331,8 @@ class InspectorPanel extends LegacyElementMixin(PolymerElement) {
     this.updateNeighborsList();
   }
 
+
+
   @observe('showTrace')
   _refreshScatterplot() {
     if (this.showTrace) {
@@ -348,7 +359,21 @@ class InspectorPanel extends LegacyElementMixin(PolymerElement) {
         }
       }
     }else{
-
+      if(window.checkboxDom){
+        if(window.queryResPointIndices && window.queryResPointIndices.length){
+          for(let i =0;i<window.queryResPointIndices.length;i++){
+            let index = window.queryResPointIndices[i]
+            if(window.customSelection.indexOf(index) !== -1){
+              let m = window.customSelection.indexOf(index)
+              if(window.checkboxDom[index]){
+                window.checkboxDom[index].checked = false
+              }
+              window.customSelection.splice(m,1)
+            }
+          }
+          this.projectorEventContext.refresh()
+        }
+      }
     }
   }
 
@@ -570,9 +595,13 @@ class InspectorPanel extends LegacyElementMixin(PolymerElement) {
     const displayPointIndex = String(pointIndex).length <= 3 ? (String(pointIndex).length === 1 ? "\xa0\xa0" + String(pointIndex) + "\xa0\xa0" : "\xa0" + String(pointIndex) + "\xa0\xa0") : String(pointIndex)
     // return String(pointIndex) + "Label: " + stringMetaData + " Prediction: " + prediction + " Original label: " + original_label;
     let prediction_res = stringMetaData === prediction ? ' ✅ ' : ' ❗️ '
+    if(suggest_label !== undefined){
+      return displayPointIndex + " | " + displayStringMetaData +`(${suggest_label})` + " | " + displayprediction + " | " + prediction_res + " | " + score
+    }else{
+      return displayPointIndex + " | " + displayStringMetaData + " | " + displayprediction + " | " + prediction_res + " | " + score
+    }
 
 
-    return displayPointIndex + " | " + displayStringMetaData +`(${suggest_label})` + " | " + displayprediction + " | " + prediction_res + " | " + score
   }
   private spriteImageRenderer() {
     const spriteImagePath = this.spriteMeta.imagePath;

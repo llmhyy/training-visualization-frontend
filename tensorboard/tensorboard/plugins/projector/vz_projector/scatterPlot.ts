@@ -98,6 +98,7 @@ export class ScatterPlot {
   private pointColors: Float32Array;
   private pointScaleFactors: Float32Array;
   private labels: LabelRenderParams;
+  private isctrling: boolean;
   private polylineColors: {
     [polylineIndex: number]: Float32Array;
   };
@@ -352,6 +353,9 @@ export class ScatterPlot {
     }
     this.orbitCameraControls.minDistance = MIN_ZOOM;
     this.orbitCameraControls.maxDistance = MAX_ZOOM;
+    this.orbitCameraControls.screenSpacePanning = true
+    // console.log('orbitCameraControls',this.orbitCameraControls)
+    this.orbitCameraControls
     this.orbitCameraControls.update();
     if (this.orbitAnimationOnNextCameraCreation) {
       this.startOrbitAnimation();
@@ -367,6 +371,7 @@ export class ScatterPlot {
       if (this.nearestPoint >= this.realDataNumber) {
         selection = [];
       }
+      window.selectedStack = selection
       this.projectorEventContext.notifySelectionChanged(selection);
     }
     this.isDragSequence = false;
@@ -376,6 +381,10 @@ export class ScatterPlot {
   private onMouseDown(e: MouseEvent) {
     this.isDragSequence = false;
     this.mouseIsDown = true;
+    if (this.isctrling === true) {
+      this.container.style.cursor = 'move';
+      return
+    }
     if (this.selecting) {
       this.orbitCameraControls.enabled = false;
       this.rectangleSelector.onMouseDown(e.offsetX, e.offsetY);
@@ -400,43 +409,6 @@ export class ScatterPlot {
       this.orbitCameraControls.mouseButtons.PAN = THREE.MOUSE.LEFT;
     }
   }
-
-  goDown() {
-    var factor = 1;
-    var vector = new THREE.Vector3(0, -3, 0.1);
-    vector.unproject(this.camera);
-    vector.sub(this.camera.position);
-    this.camera.position.subVectors(this.camera.position, vector.setLength(factor));
-    this.orbitCameraControls.target.subVectors(this.orbitCameraControls.target, vector.setLength(factor));
-    this.render();
-  }
-  goUp() {
-    var factor = 1;
-    var vector = new THREE.Vector3(0, 3, 0.1);
-    vector.unproject(this.camera);
-    vector.sub(this.camera.position);
-    this.camera.position.subVectors(this.camera.position, vector.setLength(factor));
-    this.orbitCameraControls.target.subVectors(this.orbitCameraControls.target, vector.setLength(factor));
-    this.render();
-  }
-  goLeft() {
-    var factor = 1;
-    var vector = new THREE.Vector3(-2, 0, 0.1);
-    vector.unproject(this.camera);
-    vector.sub(this.camera.position);
-    this.camera.position.subVectors(this.camera.position, vector.setLength(factor));
-    this.orbitCameraControls.target.subVectors(this.orbitCameraControls.target, vector.setLength(factor));
-    this.render();
-  }
-  goRight() {
-    var factor = 1;
-    var vector = new THREE.Vector3(2, 0, 0.1);
-    vector.unproject(this.camera);
-    vector.sub(this.camera.position);
-    this.camera.position.subVectors(this.camera.position, vector.setLength(factor));
-    this.orbitCameraControls.target.subVectors(this.orbitCameraControls.target, vector.setLength(factor));
-    this.render();
-  }
   private resetCamera() {
     const def = this.cameraDef || this.makeDefaultCameraDef(3);
     this.recreateCamera(def)
@@ -446,6 +418,15 @@ export class ScatterPlot {
   }
   /** When we stop dragging/zooming, return to normal behavior. */
   private onMouseUp(e: any) {
+    if (this.isctrling === true) {
+      if (this.selecting) {
+        this.container.style.cursor = 'crosshair';
+      } else {
+        this.container.style.cursor = 'default';
+      }
+      this.mouseIsDown = false;
+      return
+    }
     if (this.selecting) {
       this.orbitCameraControls.enabled = true;
       this.rectangleSelector.onMouseUp();
@@ -480,18 +461,41 @@ export class ScatterPlot {
   /** For using ctrl + left click as right click, and for circle select */
   private onKeyDown(e: any) {
     // If ctrl is pressed, use left click to orbit
-    if (e.keyCode === CTRL_KEY && this.sceneIs3D()) {
+    if (e.keyCode === CTRL_KEY && this.sceneIs3D) {
+      this.isctrling = true
+      this.container.style.cursor = 'move';
       this.orbitCameraControls.mouseButtons.ORBIT = THREE.MOUSE.RIGHT;
       this.orbitCameraControls.mouseButtons.PAN = THREE.MOUSE.LEFT;
     }
-    // If shift is pressed, start selecting
-    if (e.keyCode === SHIFT_KEY) {
-      this.selecting = true;
-      this.container.style.cursor = 'crosshair';
+    var keyCode = e.keyCode || e.which || e.charCode;
+    let ctrlKey = e.ctrlKey || e.metaKey;
+    //   if (ctrlKey && keyCode == 83) {
+    //     alert( 'save' );
+    //  }
+    if (ctrlKey && keyCode == 90) {
+      if (window.selectedStack && window.selectedStack.length) {
+        if (window.customSelection) {
+          this.projectorEventContext.notifySelectionChanged(window.selectedStack, true, 'boundingbox');
+          alert('Withdrawn');
+          if (!this.selecting) {
+            this.container.style.cursor = 'default';
+          } else {
+            this.container.style.cursor = 'crosshair';
+          }
+          window.selectedStack = []
+        }
+      }
     }
+    // If shift is pressed, start selecting
+    // if (e.keyCode === SHIFT_KEY) {
+    //   this.selecting = true;
+    //   this.container.style.cursor = 'crosshair';
+    // }
+
   }
   /** For using ctrl + left click as right click, and for circle select */
   private onKeyUp(e: any) {
+    this.isctrling = false
     if (e.keyCode === CTRL_KEY && this.sceneIs3D()) {
       this.orbitCameraControls.mouseButtons.ORBIT = THREE.MOUSE.LEFT;
       this.orbitCameraControls.mouseButtons.PAN = THREE.MOUSE.RIGHT;
@@ -559,11 +563,18 @@ export class ScatterPlot {
     let pointIndices = this.getPointIndicesFromPickingTexture(boundingBox);
     // remove backgound
     let validIndices = [];
-    for (let i = 0; i < pointIndices.length; i++) {
+    let length = pointIndices.length
+    if (pointIndices.length >= 100) {
+      length = 100
+      alert('You can select up to 100 points at a time, and the first 100 points are selected by default')
+    }
+    console.log('pointIndices.length', pointIndices.length)
+    for (let i = 0; i < length; i++) {
       if (pointIndices[i] < this.realDataNumber) {
         validIndices.push(pointIndices[i]);
       }
     }
+    window.selectedStack = validIndices
     this.projectorEventContext.notifySelectionChanged(validIndices, true, 'boundingbox');
   }
   private setNearestPointToMouse(e: MouseEvent) {
